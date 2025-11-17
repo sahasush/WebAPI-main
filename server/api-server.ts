@@ -16,7 +16,7 @@ const app = express();
 const PORT = parseInt(process.env.PORT || '4000', 10);
 
 // Middleware
-const allowedOrigins = (process.env.ALLOWED_ORIGINS || "http://localhost:5173,https://webfrontend-xxjt.onrender.com")
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || "http://localhost:5173,https://webfrontend-xxjt.onrender.com/")
   .split(',')
   .map(origin => origin.trim());
 
