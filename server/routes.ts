@@ -20,6 +20,18 @@ import {
   strictRateLimitByIP
 } from "./auth.js";
 
+
+import pg from "pg";
+const { Pool } = pg;
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false },
+});
+
+
+
+
 export async function registerRoutes(app: Express): Promise<Server> {
   // Global middleware for authenticated requests logging
   app.use('/api', logAuthenticatedRequest);
@@ -196,83 +208,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/waitlist", strictRateLimitByIP(10, 60 * 60 * 1000), requireApiKey, validateOrigin, async (req, res, next) => {
-    try {
-      const { name, email, interests } = req.body ?? {};
-      
-      const parsed = insertWaitlistSchema.safeParse({ name, email, interests });
-      if (!parsed.success) {
-        return res.status(400).json({ message: "Invalid input" });
-      }
-
-      // Check if email already exists
-      const exists = await storage.getWaitlistEntryByEmail(email);
-      if (exists) {
-        return res.status(409).json({ message: "Email already registered" });
-      }
-
-      // Generate verification token
-      const verificationToken = generateVerificationToken();
-      const verificationExpires = createVerificationExpiry();
-      const hashedToken = hashVerificationToken(verificationToken);
-
-      // Create waitlist entry with verification fields
-      const entryData = {
-        ...parsed.data,
-        emailVerified: null,
-        emailVerificationToken: hashedToken,
-        emailVerificationExpires: verificationExpires.toISOString()
-      };
-
-      const created = await storage.createWaitlistEntry(entryData);
-      
-      // Send verification email (non-blocking with enhanced error logging)
-      emailService.sendWaitlistVerification(email, name, verificationToken).catch(error => {
-        const timestamp = new Date().toISOString();
-        const errorDetails = {
-          timestamp,
-          email,
-          name,
-          error: error.message,
-          stack: error.stack,
-          environment: process.env.NODE_ENV,
-          emailConfig: {
-            hostConfigured: !!process.env.EMAIL_HOST,
-            serviceConfigured: !!process.env.EMAIL_SERVICE,
-            fromConfigured: !!process.env.EMAIL_FROM
-          }
-        };
-        
-        // Always log the error details
-        console.error(`[WAITLIST_VERIFICATION_EMAIL_FAILURE] ${timestamp} - Failed to send waitlist verification:`, errorDetails);
-        
-        // In production, also log to structured logging if available
-        if (process.env.NODE_ENV === 'production') {
-          console.error(`[PRODUCTION_EMAIL_ERROR] Critical: Waitlist verification email failed for ${email}`, {
-            userId: created.id,
-            userEmail: email,
-            userName: name,
-            errorMessage: error.message,
-            timestamp,
-            serverInfo: {
-              nodeVersion: process.version,
-              platform: process.platform,
-              memoryUsage: process.memoryUsage()
-            }
-          });
-        }
-      });
-      
-      res.status(201).json({ 
-        id: created.id, 
-        name: created.name, 
-        email: created.email,
-        message: "Please check your email to verify your address and complete your waitlist registration." 
-      });
-    } catch (err) {
-      next(err);
+app.post("/api/waitlist", async (req, res) => {
+  try {
+    const { name, email, interests } = req.body ?? {};
+    if (!name || !email) {
+      return res.status(400).json({ success: false, message: "Name and email are required." });
     }
-  });
+
+    // Upsert by email (insert new or update interests if email exists)
+    const sql = `
+      INSERT INTO public.waitlist (name, email, interests)
+      VALUES ($1, $2, $3)
+      ON CONFLICT (email)
+      DO UPDATE SET interests = EXCLUDED.interests, created_at = NOW()
+      RETURNING id, created_at;
+    `;
+    const params = [name, email, interests || null];
+
+    const { rows } = await pool.query(sql, params);
+
+    return res.json({ success: true, data: rows[0] });
+  } catch (err) {
+    console.error("waitlist insert error:", err);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+});
+
 
   // helper to verify passwords using PBKDF2
   function verifyPassword(password: string, hashedPassword: string): boolean {
