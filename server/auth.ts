@@ -220,6 +220,11 @@ export const logAuthenticatedRequest = (req: Request, res: Response, next: NextF
 export const requireApiKey = (req: Request, res: Response, next: NextFunction) => {
   const apiKey = req.headers['x-api-key'] as string;
   
+  //tESTING ONLY
+  console.log(`[DEBUG API KEY] Client Key: ${clientApiKey}`);
+  console.log(`[DEBUG API KEY] Server Key: ${API_KEY}`);
+  console.log(`[DEBUG API KEY] Keys Match: ${clientApiKey === API_KEY}`);
+  
   if (!apiKey) {
     return res.status(401).json({
       error: 'API key required',
