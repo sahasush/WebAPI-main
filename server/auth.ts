@@ -25,7 +25,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-t
 const JWT_EXPIRES_IN = (process.env.JWT_EXPIRES_IN || '24h') as string;
 const BCRYPT_ROUNDS = parseInt(process.env.BCRYPT_ROUNDS || '12');
 const API_KEY = process.env.API_KEY || 'your-api-key-change-this-in-production';
-const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || 'http://localhost:3000,https://eirvana.one').split(',').map(origin => origin.trim());
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || 'http://localhost:3000,https://webfrontend-xxjt.onrender.com').split(',').map(origin => origin.trim());
 
 // Password utilities using bcrypt (more secure than PBKDF2)
 export const passwordUtils = {
